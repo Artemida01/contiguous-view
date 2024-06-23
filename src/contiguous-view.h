@@ -57,13 +57,6 @@ public:
     runtime_assert(count <= size(), "too much elements");
   }
 
-//  operator contiguous_view<const T, Extent>() const {
-//    return contiguous_view<const T, Extent>(begin_, begin() + size());
-//  }
-
-  // explicit operator contiguous_view<T>() const {
-  //   return contiguous_view<T>(begin(), end());
-  // }
   template <typename It>
   explicit contiguous_view(It first, It last)
       : begin_(std::to_address(first))
@@ -75,8 +68,9 @@ public:
   contiguous_view(const contiguous_view& other) noexcept = default;
 
   template <typename U, size_t N>
-  requires(N == dynamic_extent || Extent == dynamic_extent || N == Extent)
-  contiguous_view(const contiguous_view<U, N>& other) noexcept
+    requires (N == dynamic_extent || Extent == dynamic_extent || N == Extent)
+  explicit(!(std::is_same_v<U, std::remove_const_t<T>> && (Extent == dynamic_extent || Extent == N)))
+      contiguous_view(const contiguous_view<U, N>& other) noexcept
       : begin_(other.begin())
       , size_spec_(other.size()) {
     runtime_assert(other.size() <= size(), "Too much size");
@@ -131,7 +125,7 @@ public:
     return *(end() - 1);
   }
 
-  contiguous_view<T, dynamic_extent> subview(size_t offset, size_t count = dynamic_extent) const {
+  auto subview(size_t offset, size_t count = dynamic_extent) const {
     if (count == dynamic_extent) {
       runtime_assert(offset <= size(), "Offset must be lower than size.");
       return contiguous_view<T, dynamic_extent>(begin() + offset, end());
@@ -140,6 +134,7 @@ public:
       return contiguous_view<T, dynamic_extent>(begin() + offset, begin() + offset + count);
     }
   }
+  //////////////////////////////////////////////////////////////////////////////////////////
 
   template <size_t Offset, size_t Count = dynamic_extent>
   contiguous_view<T, Count> subview() const {
