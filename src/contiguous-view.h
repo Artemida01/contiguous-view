@@ -60,7 +60,7 @@ public:
   template <typename It>
   explicit contiguous_view(It first, It last)
       : begin_(std::to_address(first))
-      , size_spec_(last - first) {
+      , size_spec_(std::distance(first, last)) {
     runtime_assert(first <= last, "Incorrect iterators");
     runtime_assert(last - first <= size(), "Too much elements");
   }
@@ -68,22 +68,13 @@ public:
   contiguous_view(const contiguous_view& other) noexcept = default;
 
   template <typename U, size_t N>
-    requires (N == dynamic_extent || Extent == dynamic_extent || N == Extent)
-  explicit(!(std::is_same_v<U, std::remove_const_t<T>> && (Extent == dynamic_extent || Extent == N)))
+    requires (dynamic_extent == Extent || dynamic_extent == N || Extent == N)
+  explicit(!std::is_same_v<U, std::remove_const_t<T>> || (Extent != dynamic_extent && Extent != N))
       contiguous_view(const contiguous_view<U, N>& other) noexcept
       : begin_(other.begin())
       , size_spec_(other.size()) {
     runtime_assert(other.size() <= size(), "Too much size");
   }
-
-  // template <typename U, size_t N>
-  //   requires (N == dynamic_extent || Extent == dynamic_extent || N == Extent)
-  // explicit(!(std::is_same_v<U, std::remove_const_t<T>> && (Extent == dynamic_extent || Extent == N)))
-  //     contiguous_view(const contiguous_view<U, N>& other) noexcept
-  //     : begin_(other.begin())
-  //     , size_spec_(other.size()) {
-  //   runtime_assert(other.size() <= size(), "Too much size");
-  // }
 
   contiguous_view& operator=(const contiguous_view& other) noexcept = default;
 
@@ -120,7 +111,8 @@ public:
   }
 
   reference operator[](size_t idx) const {
-    runtime_assert(idx < size(), "Index out of bound.");
+    runtime_assert(!empty(), "Index out of bound.");
+    runtime_assert(size() > idx, "Index out of bound.");
     return *(begin() + idx);
   }
 
@@ -135,13 +127,10 @@ public:
   }
 
   contiguous_view<T, dynamic_extent> subview(size_t offset, size_t count = dynamic_extent) const {
-    if (count == dynamic_extent) {
-      runtime_assert(offset <= size(), "Offset must be lower than size.");
-      return contiguous_view<T, dynamic_extent>(begin() + offset, end());
-    } else {
-      runtime_assert(offset + count <= size(), "Size + Offset must be lower or equals than size.");
-      return contiguous_view<T, dynamic_extent>(begin() + offset, begin() + offset + count);
-    }
+    runtime_assert(offset <= size(), "Offset must be lower than size.");
+    count = (count == dynamic_extent) ? (size() - offset) : count;
+    runtime_assert(offset + count <= size(), "Size + Offset must be lower or equals than size.");
+    return contiguous_view<T, dynamic_extent>(begin() + offset, begin() + offset + count);
   }
 
   template <size_t Offset, size_t Count = dynamic_extent>
