@@ -47,20 +47,20 @@ public:
 
 public:
   contiguous_view() noexcept
-      : begin_(nullptr)
-      , size_impl<Extent>(Extent == dynamic_extent ? 0 : Extent) {}
+      : size_impl<Extent>(Extent == dynamic_extent ? 0 : Extent)
+      , begin_(nullptr) {}
 
   template <typename It>
   explicit contiguous_view(It first, size_t count)
-      : begin_(std::to_address(first))
-      , size_impl<Extent>(count) {
+      : size_impl<Extent>(count)
+      , begin_(std::to_address(first)) {
     runtime_assert(count <= this->size(), "too much elements");
   }
 
   template <typename It>
   explicit contiguous_view(It first, It last)
-      : begin_(std::to_address(first))
-      , size_impl<Extent>(std::distance(first, last)) {
+      : size_impl<Extent>(std::distance(first, last))
+      , begin_(std::to_address(first)) {
     runtime_assert(first <= last, "Incorrect iterators");
     runtime_assert(last - first <= this->size(), "Too much elements");
   }
@@ -71,8 +71,8 @@ public:
     requires (dynamic_extent == Extent || dynamic_extent == N || Extent == N)
   explicit(!std::is_same_v<U, std::remove_const_t<T>> || (Extent != dynamic_extent && Extent != N))
       contiguous_view(const contiguous_view<U, N>& other) noexcept
-      : begin_(other.begin())
-      , size_impl<Extent>(other.size()) {
+      : size_impl<Extent>(other.size())
+      , begin_(other.begin()) {
     runtime_assert(other.size() <= this->size(), "Too much size");
   }
 
