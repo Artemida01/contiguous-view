@@ -8,6 +8,29 @@
 
 inline constexpr size_t dynamic_extent = -1;
 
+template <size_t Ext>
+struct size_spec {
+  size_spec() = default;
+
+  size_spec(size_t a) {}
+
+  size_t size() const {
+    return Ext;
+  }
+};
+
+template <>
+struct size_spec<dynamic_extent> {
+  size_t size_;
+
+  size_spec(size_t sss)
+      : size_(sss) {}
+
+  size_t size() const {
+    return size_;
+  }
+};
+
 template <typename T, size_t Extent = dynamic_extent>
 class contiguous_view {
 public:
@@ -25,24 +48,23 @@ public:
 public:
   contiguous_view() noexcept
       : begin_(nullptr)
-      , end_(nullptr) {
+      , size_spec_(0) {
     runtime_assert(Extent == dynamic_extent, "Default constructor can only be used with dynamic extent.");
   }
 
   template <typename It>
   explicit contiguous_view(It first, size_t count)
-      : begin_(std::addressof(*first))
-      , end_(std::addressof(*(first + count))) {
-    // runtime_assert(first, "Pointer cannot be null.");
-    if constexpr (Extent != dynamic_extent) {
-      if (count != Extent) {
-        throw std::runtime_error("Size must match Extent.");
-      }
-    }
+      : begin_(std::to_address(first))
+      , size_spec_(count) {
+    // if constexpr (Extent != dynamic_extent) {
+    //   if (count != Extent) {
+    //     throw std::runtime_error("Size must match Extent.");
+    //   }
+    // }
   }
 
   operator contiguous_view<const T, Extent>() const {
-    return contiguous_view<const T, Extent>(begin_, end_);
+    return contiguous_view<const T, Extent>(begin_, begin() + size());
   }
 
   // explicit operator contiguous_view<T>() const {
@@ -53,8 +75,8 @@ public:
 
   template <typename It>
   explicit contiguous_view(It first, It last)
-      : begin_(std::addressof(*first))
-      , end_(std::addressof(*last)) {
+      : begin_(std::to_address(first))
+      , size_spec_(last - first) {
     // runtime_assert(first == decltype(first)(nullptr) && last == decltype(last)(nullptr), "Pointers cannot be null.");
     // runtime_assert(Extent == dynamic_extent || size() == Extent, "Size must match Extent.");
   }
@@ -66,7 +88,7 @@ public:
   template <typename U, size_t N>
   contiguous_view(const contiguous_view<U, N>& other) noexcept
       : begin_(other.begin())
-      , end_(other.end()) {
+      , size_spec_(other.size()) {
     static_assert(std::is_convertible<U*, T*>::value, "Incompatible types.");
     runtime_assert(
         N == dynamic_extent || Extent == dynamic_extent || N == Extent,
@@ -75,9 +97,7 @@ public:
   }
 
   contiguous_view& operator=(const contiguous_view& other) noexcept {
-    // if (&other != *this) {
     swap(contiguous_view(other));
-    // }
     return *this;
   }
 
@@ -86,7 +106,7 @@ public:
   }
 
   size_t size() const noexcept {
-    return std::distance(begin(), end());
+    return size_spec_.size();
   }
 
   size_t size_bytes() const noexcept {
@@ -106,11 +126,11 @@ public:
   }
 
   iterator end() const noexcept {
-    return end_;
+    return begin() + size();
   }
 
   const_iterator cend() const noexcept {
-    return end_;
+    return begin() + size();
   }
 
   reference operator[](size_t idx) const {
@@ -125,7 +145,7 @@ public:
 
   reference back() const {
     runtime_assert(!empty(), "No such element (back).");
-    return *(begin() - 1);
+    return *(end() - 1);
   }
 
   contiguous_view<T, dynamic_extent> subview(size_t offset, size_t count = dynamic_extent) const {
@@ -145,7 +165,6 @@ public:
     static_assert(new_extent == dynamic_extent || (Offset + new_extent) <= Extent, "Count out of bounds.");
 
     return contiguous_view<T, 0>(begin() + Offset, new_extent);
-    // return contiguous_view<T, new_extent>(begin() + Offset, new_extent);
   }
 
   template <size_t Count>
@@ -170,9 +189,6 @@ public:
     return contiguous_view<T, dynamic_extent>(begin() + size() - count, count);
   }
 
-  // contiguous_view</*const?*/ std::byte, 0> as_bytes() const {
-  //   return reinterpret_cast<std::byte>);
-  // }
   auto as_bytes() const {
     return contiguous_view<std::conditional_t<std::is_const_v<T>, const std::byte, std::byte>, dynamic_extent>(
         reinterpret_cast<std::conditional_t<std::is_const_v<T>, const std::byte*, std::byte*>>(begin()),
@@ -183,7 +199,7 @@ public:
   void swap(contiguous_view other) {
     using std::swap;
     swap(other.begin_, begin_);
-    swap(other.end_, end_);
+    swap(other.size_spec_, size_spec_);
   }
 
   explicit operator std::string_view() const {
@@ -191,10 +207,10 @@ public:
         std::is_same_v<T, const char>,
         "Only contiguous_view<const char> can be converted to std::string_view."
     );
-    return std::string_view(reinterpret_cast<const char*>(begin()), static_cast<std::size_t>(end() - begin()));
+    return std::string_view(reinterpret_cast<const char*>(begin()), static_cast<std::size_t>(size()));
   }
 
 private:
   iterator begin_;
-  iterator end_;
+  [[no_unique_address]] size_spec<Extent> size_spec_;
 };
