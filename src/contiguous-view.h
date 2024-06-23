@@ -12,7 +12,7 @@ template <size_t Ext>
 struct size_impl {
   size_impl() = default;
 
-  size_impl(size_t a) {}
+  size_impl(size_t) {}
 
   size_t size() const {
     return Ext;
