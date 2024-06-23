@@ -84,6 +84,7 @@ public:
         N == dynamic_extent || Extent == dynamic_extent || N == Extent,
         "Cannot convert between different static extents."
     );
+    runtime_assert(other.size() <= size(), "Too much size");
   }
 
   contiguous_view& operator=(const contiguous_view& other) noexcept {
@@ -137,8 +138,6 @@ public:
     runtime_assert(!empty(), "No such element (back).");
     return *(end() - 1);
   }
-
-  //////////////////////////////////////////////////////////////////////////////////////////
 
   contiguous_view<T, dynamic_extent> subview(size_t offset, size_t count = dynamic_extent) const {
     runtime_assert(offset <= size() && offset + count <= size(), "Offset out of bounds.");
