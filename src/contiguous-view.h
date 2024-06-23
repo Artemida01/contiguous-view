@@ -1,10 +1,10 @@
 #pragma once
 
 #include "runtime-assert.h"
-#include <type_traits>
 
 #include <algorithm>
 #include <cstddef>
+#include <type_traits>
 
 inline constexpr size_t dynamic_extent = static_cast<size_t>(-1);
 
