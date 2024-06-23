@@ -70,18 +70,14 @@ public:
   // explicit operator contiguous_view<T>() const {
   //   return contiguous_view<T>(begin(), end());
   // }
-
-  //////////////////////////////////////////////////////////////////////////////////////////
-
   template <typename It>
   explicit contiguous_view(It first, It last)
       : begin_(std::to_address(first))
       , size_spec_(last - first) {
-    // runtime_assert(first == decltype(first)(nullptr) && last == decltype(last)(nullptr), "Pointers cannot be null.");
-    // runtime_assert(Extent == dynamic_extent || size() == Extent, "Size must match Extent.");
+            runtime_assert(first <= last, "Incorrect iterators");
+//     runtime_assert(first == decltype(first)(nullptr) && last == decltype(last)(nullptr), "Pointers cannot be null.");
+//     runtime_assert(Extent == dynamic_extent || size() == Extent, "Size must match Extent.");
   }
-
-  //////////////////////////////////////////////////////////////////////////////////////////
 
   contiguous_view(const contiguous_view& other) noexcept = default;
 
@@ -94,6 +90,7 @@ public:
         N == dynamic_extent || Extent == dynamic_extent || N == Extent,
         "Cannot convert between different static extents."
     );
+
   }
 
   contiguous_view& operator=(const contiguous_view& other) noexcept {
@@ -148,6 +145,8 @@ public:
     return *(end() - 1);
   }
 
+  //////////////////////////////////////////////////////////////////////////////////////////
+
   contiguous_view<T, dynamic_extent> subview(size_t offset, size_t count = dynamic_extent) const {
     runtime_assert(offset <= size(), "Offset out of bounds.");
     if (count == dynamic_extent) {
@@ -158,14 +157,22 @@ public:
   }
 
   template <size_t Offset, size_t Count = dynamic_extent>
-  contiguous_view<T, 0> subview() const {
+  contiguous_view<T, Count> subview() const {
     static_assert(Offset <= Extent || Extent == dynamic_extent, "Offset out of bounds.");
-    constexpr size_t new_extent =
-        (Count == dynamic_extent) ? (Extent == dynamic_extent ? dynamic_extent : Extent - Offset) : Count;
-    static_assert(new_extent == dynamic_extent || (Offset + new_extent) <= Extent, "Count out of bounds.");
-
-    return contiguous_view<T, 0>(begin() + Offset, new_extent);
+    if (Count == dynamic_extent) {
+      return contiguous_view<T, Count>(begin() + Offset, begin() + size());    /// переписать
+    } else {
+      return contiguous_view<T, Count>(begin() + Offset, begin() + Offset + Count);
+    }
+//    static_assert(Offset <= Extent || Extent == dynamic_extent, "Offset out of bounds.");
+//    constexpr size_t new_extent =
+//        (Count == dynamic_extent) ? (Extent == dynamic_extent ? dynamic_extent : Extent - Offset) : Count;
+//    static_assert(new_extent == dynamic_extent || (Offset + new_extent) <= Extent, "Count out of bounds.");
+//
+//    return contiguous_view<T, Count>(begin() + Offset, new_extent);
   }
+
+  //////////////////////////////////////////////////////////////////////////////////////////
 
   template <size_t Count>
   auto first() const {
@@ -185,7 +192,7 @@ public:
   }
 
   contiguous_view<T, dynamic_extent> last(size_t count) const {
-    runtime_assert(count <= Extent, "Count out of bounds.");
+    runtime_assert(count != -1 && count < size(), "Count out of bounds.");
     return contiguous_view<T, dynamic_extent>(begin() + size() - count, count);
   }
 
