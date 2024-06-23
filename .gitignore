@@ -12,3 +12,4 @@ Makefile
 
 # OS
 .DS_Store
+/my_dir/

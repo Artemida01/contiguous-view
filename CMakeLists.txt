@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.21)
 project(contiguous-view)
 
 set(CMAKE_CXX_STANDARD 20)
+include(my_dir/CMakeLists.txt)
 
 find_package(GTest REQUIRED)
 
