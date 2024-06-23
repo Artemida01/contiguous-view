@@ -1,12 +1,12 @@
 #pragma once
 
 #include "runtime-assert.h"
-#include "type_traits"
+#include <type_traits>
 
 #include <algorithm>
 #include <cstddef>
 
-inline constexpr size_t dynamic_extent = -1;
+inline constexpr size_t dynamic_extent = static_cast<size_t>(-1);
 
 template <size_t Ext>
 struct size_impl {
