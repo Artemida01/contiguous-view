@@ -46,34 +46,39 @@ public:
   using const_iterator = const_pointer;
 
 public:
-  contiguous_view() noexcept
+  /// contiguous_view() noexcept
+  ///     : size_impl<Extent>(Extent == dynamic_extent ? 0 : Extent)
+  ///     , begin_(nullptr) {
+  ///   runtime_assert(Extent == 0 || Extent == dynamic_extent, "Incorrect transformation");
+  /// }
+  explicit(Extent == 0 || Extent == dynamic_extent) contiguous_view() noexcept
       : size_impl<Extent>(Extent == dynamic_extent ? 0 : Extent)
       , begin_(nullptr) {}
 
+  /// было просто
+  /// explicit contiguous_view(It first, size_t count)
   template <typename It>
-  explicit contiguous_view(It first, size_t count)
+  explicit(Extent != dynamic_extent) contiguous_view(It first, size_t count)
       : size_impl<Extent>(count)
       , begin_(std::to_address(first)) {
-    runtime_assert(count <= this->size(), "too much elements");
+    runtime_assert(count == this->size(), "Too much elements"); /// <=
   }
 
   template <typename It>
   explicit contiguous_view(It first, It last)
-      : size_impl<Extent>(std::distance(first, last))
-      , begin_(std::to_address(first)) {
+      : contiguous_view(first, std::distance(first, last)) {
     runtime_assert(first <= last, "Incorrect iterators");
-    runtime_assert(last - first <= this->size(), "Too much elements");
   }
 
   contiguous_view(const contiguous_view& other) noexcept = default;
 
-  template <typename U, size_t N>
-    requires (dynamic_extent == Extent || dynamic_extent == N || Extent == N)
-  explicit(!std::is_same_v<U, std::remove_const_t<T>> || (Extent != dynamic_extent && Extent != N))
-      contiguous_view(const contiguous_view<U, N>& other) noexcept
+  template <typename U, size_t N> /// explicit ---> requires
+    requires (!std::is_same_v<U, std::remove_const_t<T>> || dynamic_extent == Extent || dynamic_extent == N ||
+              Extent == N)
+  explicit(Extent != dynamic_extent && Extent != N) contiguous_view(const contiguous_view<U, N>& other) noexcept
       : size_impl<Extent>(other.size())
       , begin_(other.begin()) {
-    runtime_assert(other.size() <= this->size(), "Too much size");
+    runtime_assert(other.size() == this->size(), "Too much size"); /// <=
   }
 
   contiguous_view& operator=(const contiguous_view& other) noexcept = default;
@@ -130,63 +135,72 @@ public:
     runtime_assert(offset <= this->size(), "Offset must be lower than size.");
     count = (count == dynamic_extent) ? (this->size() - offset) : count;
     runtime_assert(offset + count <= this->size(), "Size + Offset must be lower or equals than size.");
-    return contiguous_view<T, dynamic_extent>(begin() + offset, begin() + offset + count);
+    return contiguous_view<T, dynamic_extent>(begin() + offset, count); /// begin() + offset + count --> count
   }
 
   template <size_t Offset, size_t Count = dynamic_extent>
   auto subview() const {
-    runtime_assert(Offset <= this->size(), "Offset must be lower than size.");
+    if constexpr (Offset > Extent) {
+      static_assert(Offset <= Extent, "Incorrect Sizes");
+    }
+    runtime_assert(Offset <= this->size(), "Incorrect Sizes");
+
+    if constexpr (Count != dynamic_extent) {
+      if constexpr (Offset + Count > Extent) {
+        static_assert(Offset + Count <= Extent, "Incorrect Sizes");
+      }
+    }
+
     if constexpr (Count == dynamic_extent) {
       if constexpr (Extent == dynamic_extent) {
-        return contiguous_view<T, dynamic_extent>(begin() + Offset, begin() + this->size());
+        return contiguous_view<T, dynamic_extent>(begin() + Offset, end()); /// begin() + this->size() == end()
       } else {
-        return contiguous_view<T, Extent - Offset>(begin() + Offset, begin() + this->size());
+        return contiguous_view<T, Extent - Offset>(begin() + Offset, end()); /// begin() + this->size() == end()
       }
     } else {
-      runtime_assert(Offset + Count <= this->size(), "Offset must be lower than size.");
-      return contiguous_view<T, Count>(begin() + Offset, begin() + Offset + Count);
+      runtime_assert(Offset + Count <= this->size(), "Offset + Count must be lower than or equal to size.");
+      return contiguous_view<T, Count>(begin() + Offset, Count); /// begin() + Offset + Count --> Count
     }
   }
 
-  ////////////////////////////////////////////////////////////////////////////////////////
-
   template <size_t Count>
   contiguous_view<T, Count> first() const {
-    runtime_assert(Count <= Extent, "Count out of bounds.");
-    runtime_assert(Count != -1 && Count < this->size(), "Count out of bounds.");
+    if constexpr (Extent != dynamic_extent) {
+      static_assert(Count <= Extent, "Count out of bounds.");
+    }
+    runtime_assert(Count != dynamic_extent && Count <= this->size(), "Count out of bounds.");
     return contiguous_view<T, Count>(begin(), Count);
   }
 
   contiguous_view<T, dynamic_extent> first(size_t count) const {
-    runtime_assert(count <= Extent, "Count out of bounds.");
-    runtime_assert(count != -1 && count < this->size(), "Count out of bounds.");
+    runtime_assert(count <= this->size(), "Count out of bounds.");
     return contiguous_view<T, dynamic_extent>(begin(), count);
   }
 
   template <size_t Count>
   contiguous_view<T, Count> last() const {
-    runtime_assert(Count <= Extent, "Count out of bounds.");
-    runtime_assert(Count != -1 && Count < this->size(), "Count out of bounds.");
+    if constexpr (Extent != dynamic_extent) {
+      static_assert(Count <= Extent, "Count out of bounds.");
+    }
+    runtime_assert(Count != dynamic_extent && Count <= this->size(), "Count out of bounds.");
     return contiguous_view<T, Count>(begin() + this->size() - Count, Count);
   }
 
   contiguous_view<T, dynamic_extent> last(size_t count) const {
-    runtime_assert(count <= Extent, "Count out of bounds.");
-    runtime_assert(count != -1 && count < this->size(), "Count out of bounds.");
+    runtime_assert(count <= this->size(), "Count out of bounds.");
     return contiguous_view<T, dynamic_extent>(begin() + this->size() - count, count);
   }
 
   auto as_bytes() const {
+    using my_byte = std::conditional_t<std::is_const_v<T>, const std::byte, std::byte>;
+    using byte_ptr = std::conditional_t<std::is_const_v<T>, const std::byte*, std::byte*>;
+    byte_ptr byte_begin = reinterpret_cast<byte_ptr>(begin());
+    size_t byte_size = size_bytes();
+
     if constexpr (Extent == dynamic_extent) {
-      return contiguous_view<std::conditional_t<std::is_const_v<T>, const std::byte, std::byte>, dynamic_extent>(
-          reinterpret_cast<std::conditional_t<std::is_const_v<T>, const std::byte*, std::byte*>>(begin()),
-          size_bytes()
-      );
+      return contiguous_view<my_byte, dynamic_extent>(byte_begin, byte_size);
     } else {
-      return contiguous_view<std::conditional_t<std::is_const_v<T>, const std::byte, std::byte>, Extent * sizeof(T)>(
-          reinterpret_cast<std::conditional_t<std::is_const_v<T>, const std::byte*, std::byte*>>(begin()),
-          size_bytes()
-      );
+      return contiguous_view<my_byte, Extent * sizeof(T)>(byte_begin, byte_size);
     }
   }
 
@@ -197,10 +211,12 @@ public:
   }
 
   explicit operator std::string_view() const {
-    runtime_assert(
-        std::is_same_v<T, const char>,
-        "Only contiguous_view<const char> can be converted to std::string_view."
-    );
+    if constexpr (std::is_same_v<T, const char>) {
+      static_assert(
+          std::is_same_v<T, const char>,
+          "Only contiguous_view<const char> can be converted to std::string_view."
+      );
+    }
     return std::string_view(reinterpret_cast<const char*>(begin()), static_cast<std::size_t>(this->size()));
   }
 
