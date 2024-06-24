@@ -210,14 +210,18 @@ public:
     swap(static_cast<size_impl<Extent>&>(*this), static_cast<size_impl<Extent>&>(other));
   }
 
+//  explicit operator std::string_view() const {
+//    if constexpr (std::is_same_v<T, const char>) {
+//      static_assert(
+//          std::is_same_v<T, const char>,
+//          "Only contiguous_view<const char> can be converted to std::string_view."
+//      );
+//    }
+//    return std::string_view(reinterpret_cast<const char*>(begin()), static_cast<std::size_t>(this->size()));
+//  }
+  template <typename U = T, typename = std::enable_if_t<std::is_same_v<U, const char>>>
   explicit operator std::string_view() const {
-    if constexpr (std::is_same_v<T, const char>) {
-      static_assert(
-          std::is_same_v<T, const char>,
-          "Only contiguous_view<const char> can be converted to std::string_view."
-      );
-    }
-    return std::string_view(reinterpret_cast<const char*>(begin()), static_cast<std::size_t>(this->size()));
+    return std::string_view(reinterpret_cast<const char*>(begin()), this->size());
   }
 
 private:
